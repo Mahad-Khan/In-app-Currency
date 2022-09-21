@@ -18,14 +18,41 @@ print(path)
 
 from mongo_connection import MongoConnection
 from Dynamo import User, Wallet
+from boto3 import resource
+import config
 
+# getting access keys from config file for aws dynamo db auth
+AWS_ACCESS_KEY_ID     = config.AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY = config.AWS_SECRET_ACCESS_KEY
+REGION_NAME           = config.REGION_NAME
 
+# Get the service resource.
+dynamodb = resource(
+    'dynamodb',
+    aws_access_key_id     = AWS_ACCESS_KEY_ID,
+    aws_secret_access_key = AWS_SECRET_ACCESS_KEY,
+    region_name           = REGION_NAME,
+)
+
+# checking if tables are created
+user_table = User(dynamodb)
+if user_table.exists('users'):
+    print('User table found')
+else:
+    print('User table not found')
+        
+wallet_table = Wallet(dynamodb)
+if wallet_table.exists('wallet'):
+    print('Wallet table found')
+else:
+    print('Wallet table not found')
 
     
 
-
 mod = Blueprint('api',__name__)
 api = Api(mod)
+
+
 
 connection = MongoConnection()
 #getting collections from database
@@ -38,53 +65,11 @@ user_login_schema = connection.get_login_schema()
 adding_amount_validation = connection.get_adding_amount_validation()
           
 
-class TemplateDetail(Resource):
-    @jwt_required()
-    def get(self, template_id): #it will get template by ID with authentication
-        try:
-            current_user_email = get_jwt_identity() # Get the identity of the current user
-            template_from_db = template_collection.find_one({'template_id' : int(template_id), "email": current_user_email}, {"_id": 0, "template_id":0})
-            if template_from_db:
-                return make_response(jsonify({"data": template_from_db}), 200)
-            else:
-                return make_response(jsonify({'msg': 'template not found'}), 404)    
-        except Exception as e:
-            return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
-        
-    @jwt_required()    
-    def delete(self,template_id): #it will delete template by ID with authentication
-        try:
-            current_user_email = get_jwt_identity() # Get the identity of the current user
-            template_from_db = template_collection.find_one({'template_id' : int(template_id), "email": current_user_email}, {"_id": 0, "template_id":0})
-            if template_from_db:
-                template_from_db = template_collection.delete_one({'template_id' : int(template_id)})
-                return make_response(jsonify({"msg": "template deleted"}), 200)
-            else:
-                return make_response(jsonify({'msg': 'template not found'}), 404)
-        except Exception as e:
-            return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
-        
-    @jwt_required()    
-    def put(self,template_id): #it will update template by ID with authentication
-        try: 
-            data = request.get_json()
-            current_user_email = get_jwt_identity() # Get the identity of the current user
-            try:
-                validate(instance=data, schema=template_schema) # schema validation
-            except Exception as e:
-                return make_response(jsonify({'msg': 'data validation failure', "reason": str(e)}), 400)
-            
-            template_from_db = template_collection.find_one({'template_id' : int(template_id), "email": current_user_email}, {"_id": 0, "template_id":0})
-            if template_from_db:
-                template_collection.update_one({"template_id": int(template_id), "email": str(current_user_email)}, {'$set': data})
-                return make_response(jsonify({'msg': 'template updated'}), 200)     
-            else:
-                return make_response(jsonify({'msg': 'template not found'}), 404)
-        except Exception as e:
-            return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
-        
-
-class TemplateDetail(Resource):
+class AddCurrency(Resource):
+    """
+    It supports adding amount into the wallet 
+    also getting balance from the wallet
+    """
     @jwt_required()
     def get(self):
         try:
@@ -106,7 +91,6 @@ class TemplateDetail(Resource):
             except Exception as e:
                 return make_response(jsonify({'msg': 'Invalid amount', "reason": str(e)}), 400)
             
-            
             data['email'] = current_user_email
             # adding data['amount'] in current user balance
             data = wallet_table.update_balance(data)
@@ -114,7 +98,11 @@ class TemplateDetail(Resource):
         except Exception as e:
             return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
         
-class TemplateList(Resource):        
+class PayCurrency(Resource):
+    """
+    It is reponsible to pay amount
+    from the wallet to buy premium features
+    """        
     @jwt_required()        
     def post(self):
         try:
@@ -127,16 +115,20 @@ class TemplateList(Resource):
                 return make_response(jsonify({'msg': 'Invalid amount', "reason": str(e)}), 400)
 
             data['email'] = current_user_email
-            # adding data['amount'] in current user balance
             data = wallet_table.pay_amount(data)
             if data == "not enough balance":
                 return make_response(jsonify({'msg': 'Insufficient funds'}), 400)
+            #assumption: Here, we have paid the amount for premium feature
             return make_response(jsonify({'msg': 'you have bought premium feature successfully'}), 201)
         except Exception as e:
             return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
     
  
 class Register(Resource):
+    """
+    User registration with first_name, last_name
+    email, and password
+    """
     def post(self):
         try:
             new_user = request.get_json()
@@ -160,6 +152,9 @@ class Register(Resource):
             
             
 class Login(Resource):
+    """
+    login the user and return jwt token
+    """
     def post(self): 
         try:
             login_details = request.get_json() # store the json body request
@@ -185,6 +180,8 @@ class Login(Resource):
         except Exception as e:
             return make_response(jsonify({'msg': 'faliure', "reason": str(e)}), 500)
     
-
+    
+api.add_resource(PayCurrency,'/pay')
+api.add_resource(AddCurrency,'/currency')
 api.add_resource(Register,'/register')
 api.add_resource(Login,'/login')
