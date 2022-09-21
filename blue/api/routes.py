@@ -16,7 +16,7 @@ path = dirname + "/api"
 sys.path.append(path)
 print(path)
 
-from mongo_connection import MongoConnection
+from blue.api.DataValidation import DataValidation
 from Dynamo import User, Wallet
 from boto3 import resource
 import config
@@ -53,16 +53,12 @@ mod = Blueprint('api',__name__)
 api = Api(mod)
 
 
-
-connection = MongoConnection()
-#getting collections from database
-user_collection = connection.get_user_collection()
-template_collection = connection.get_template_collection()
+data_validation = DataValidation()
 
 #getting schemas for data validation
-user_registeration_schema = connection.get_user_schema()
-user_login_schema = connection.get_login_schema()
-adding_amount_validation = connection.get_adding_amount_validation()
+user_registeration_schema = data_validation.get_user_schema()
+user_login_schema = data_validation.get_login_schema()
+adding_amount_validation = data_validation.get_adding_amount_validation()
           
 
 class AddCurrency(Resource):

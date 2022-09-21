@@ -1,18 +1,8 @@
-
-from pymongo import MongoClient
-
-class MongoConnection:
-    def __init__(self):
-        self.client = MongoClient("mongodb+srv://User1:User1@cluster0.qba5b05.mongodb.net/?retryWrites=true&w=majority") # your connection string
-        self.db = self.client["mydatabase"]
-        self.template_collection = self.db["template_collection"]
-        self.user_collection = self.db["user_collection"]
-    
-    def get_template_collection(self):
-        return self.template_collection
-    
-    def get_user_collection(self):
-        return self.user_collection
+class DataValidation:
+    """
+    performing incoming data validation
+    using json schema
+    """
     
     def get_user_schema(self):
         schema = {
